@@ -22,70 +22,16 @@
       background: #000;
     }
 
-    /* El iframe de YouTube debe ser más grande que la pantalla para ocultar
-       controles y logo. Usamos el truco de escalar desde el centro. */
     #yt-player {
       position: absolute;
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      /* Relación 16:9 ampliada para cubrir cualquier pantalla y ocultar UI */
       width: calc(100vh * (16/9) * 1.1);
       height: calc(100vh * 1.1);
       min-width: 110vw;
-      pointer-events: none; /* evita que el usuario pause o interactúe */
-      border: none;
-    }
-
-    /* Capa de interacción encima del iframe */
-    #tap-overlay {
-      position: fixed;
-      inset: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      background: rgba(0, 0, 0, 0.55);
-      cursor: pointer;
-      z-index: 10;
-      transition: opacity 0.6s ease;
-    }
-
-    #tap-overlay.hidden {
-      opacity: 0;
       pointer-events: none;
-    }
-
-    .tap-icon {
-      width: 80px;
-      height: 80px;
-      border-radius: 50%;
-      background: rgba(255,255,255,0.15);
-      border: 2px solid rgba(255,255,255,0.6);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin-bottom: 16px;
-      animation: pulse 2s infinite;
-    }
-
-    .tap-icon svg {
-      width: 36px;
-      height: 36px;
-      fill: #fff;
-      margin-left: 4px; /* centra visualmente el triángulo */
-    }
-
-    .tap-label {
-      color: rgba(255,255,255,0.85);
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      font-size: 15px;
-      letter-spacing: 0.05em;
-    }
-
-    @keyframes pulse {
-      0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255,255,255,0.3); }
-      50% { transform: scale(1.05); box-shadow: 0 0 0 12px rgba(255,255,255,0); }
+      border: none;
     }
   </style>
 </head>
@@ -99,19 +45,7 @@
   ></iframe>
 </div>
 
-<!-- Overlay visible hasta que el usuario toca la pantalla -->
-<div id="tap-overlay">
-  <div class="tap-icon">
-    <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-  </div>
-  <span class="tap-label">Toca para reproducir</span>
-</div>
-
 <script>
-  const overlay = document.getElementById('tap-overlay');
-  const iframe  = document.getElementById('yt-player');
-
-  // Extrae el video ID de una URL de YouTube (varios formatos)
   function extractYouTubeId(url) {
     const patterns = [
       /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&?/\s]{11})/,
@@ -124,18 +58,17 @@
     return null;
   }
 
-  function buildEmbedUrl(videoId, muted) {
+  function buildEmbedUrl(videoId) {
     const params = new URLSearchParams({
-      autoplay: '1',
-      loop:     '1',
-      playlist: videoId,   // necesario para que loop funcione
-      controls: '0',       // oculta controles
-      modestbranding: '1', // reduce branding
-      rel:      '0',       // no muestra videos relacionados
-      showinfo: '0',
-      iv_load_policy: '3', // sin anotaciones
-      mute:     muted ? '1' : '0',
-      enablejsapi: '1'
+      autoplay:       '1',
+      loop:           '1',
+      playlist:       videoId,
+      controls:       '0',
+      modestbranding: '1',
+      rel:            '0',
+      showinfo:       '0',
+      iv_load_policy: '3',
+      mute:           '0'
     });
     return `https://www.youtube.com/embed/${videoId}?${params}`;
   }
@@ -148,50 +81,10 @@
     .then(cfg => {
       const videoId = extractYouTubeId(cfg.video_url);
       if (!videoId) {
-        console.error('No se pudo extraer el ID de YouTube de:', cfg.video_url);
+        console.error('No se pudo extraer el ID de YouTube:', cfg.video_url);
         return;
       }
-
-      if (cfg.autoplay) {
-        // Intenta autoplay SIN mute primero (solo funciona si el usuario
-        // ya interactuó con la página anteriormente en este dominio).
-        iframe.src = buildEmbedUrl(videoId, false);
-
-        // Si después de 1.5 s el video no arrancó con sonido, mostramos overlay.
-        // Usamos el evento de mensaje de la API de YouTube para detectarlo.
-        let playedWithSound = false;
-
-        window.addEventListener('message', function onMsg(e) {
-          try {
-            const data = JSON.parse(e.data);
-            // Estado 1 = reproduciendo
-            if (data.event === 'onStateChange' && data.info === 1) {
-              playedWithSound = true;
-              overlay.classList.add('hidden');
-              window.removeEventListener('message', onMsg);
-            }
-          } catch (_) {}
-        });
-
-        // Fallback: si no arrancó solo, espera el tap del usuario
-        setTimeout(() => {
-          if (!playedWithSound) {
-            // Recarga el iframe muteado para que el autoplay sí funcione,
-            // y al hacer tap se activa el sonido
-            iframe.src = buildEmbedUrl(videoId, true);
-          }
-        }, 1500);
-
-        overlay.addEventListener('click', () => {
-          // Al hacer tap: recarga sin mute
-          iframe.src = buildEmbedUrl(videoId, false);
-          overlay.classList.add('hidden');
-        }, { once: true });
-
-      } else {
-        iframe.src = buildEmbedUrl(videoId, true);
-        overlay.classList.add('hidden');
-      }
+      document.getElementById('yt-player').src = buildEmbedUrl(videoId);
     })
     .catch(err => console.error(err));
 </script>
