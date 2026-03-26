@@ -6,43 +6,27 @@
   <title>Video Fullscreen</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-
     html, body {
-      width: 100%;
-      height: 100%;
-      background: #000;
-      overflow: hidden;
+      width: 100%; height: 100%;
+      background: #000; overflow: hidden;
     }
-
-    #player-wrapper {
-      position: fixed;
-      inset: 0;
-      width: 100vw;
-      height: 100vh;
-      background: #000;
-    }
-
     #yt-player {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
       border: none;
     }
   </style>
 </head>
 <body>
 
-<div id="player-wrapper">
-  <iframe
-    id="yt-player"
-    allow="autoplay; encrypted-media; fullscreen"
-    allowfullscreen
-  ></iframe>
-</div>
+<!-- La API de YouTube requiere un div, no un iframe directo -->
+<div id="yt-player"></div>
 
+<script src="https://www.youtube.com/iframe_api"></script>
 <script>
+  let player;
+
   function extractYouTubeId(url) {
     const patterns = [
       /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&?/\s]{11})/,
@@ -55,36 +39,40 @@
     return null;
   }
 
-  function buildEmbedUrl(videoId) {
-    const params = new URLSearchParams({
-      autoplay:       '1',
-      loop:           '1',
-      playlist:       videoId,
-      controls:       '0',
-      modestbranding: '1',
-      rel:            '0',
-      iv_load_policy: '3',
-      mute:           '0',
-      enablejsapi:    '1',
-      origin:         window.location.origin
-    });
-    return `https://www.youtube-nocookie.com/embed/${videoId}?${params}`;
+  function onYouTubeIframeAPIReady() {
+    fetch('./config.json?t=' + Date.now())
+      .then(r => r.json())
+      .then(cfg => {
+        const videoId = extractYouTubeId(cfg.video_url);
+
+        player = new YT.Player('yt-player', {
+          videoId: videoId,
+          playerVars: {
+            autoplay:       1,
+            mute:           1,   // arranca muteado para que YouTube lo permita
+            controls:       0,
+            modestbranding: 1,
+            rel:            0,
+            iv_load_policy: 3,
+            enablejsapi:    1,
+          },
+          events: {
+            onReady: onPlayerReady,
+          }
+        });
+      })
+      .catch(err => console.error(err));
   }
 
-  fetch('./config.json?t=' + Date.now())
-    .then(r => {
-      if (!r.ok) throw new Error('No se encontró config.json');
-      return r.json();
-    })
-    .then(cfg => {
-      const videoId = extractYouTubeId(cfg.video_url);
-      if (!videoId) {
-        console.error('No se pudo extraer el ID de YouTube:', cfg.video_url);
-        return;
-      }
-      document.getElementById('yt-player').src = buildEmbedUrl(videoId);
-    })
-    .catch(err => console.error(err));
+  function onPlayerReady(event) {
+    event.target.playVideo();
+
+    // Desmutea automáticamente después de que arranca
+    setTimeout(() => {
+      player.unMute();
+      player.setVolume(100);
+    }, 1500);
+  }
 </script>
 
 </body>
